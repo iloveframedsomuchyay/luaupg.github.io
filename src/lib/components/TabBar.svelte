@@ -8,7 +8,7 @@
   import { showBytecode, toggleBytecode } from '$lib/stores/settings';
   import { toggleTheme, themeMode } from '$lib/utils/theme';
   import { sharePlayground } from '$lib/utils/share';
-  import { isEmbed, embedIcons } from '$lib/stores/embed';
+  import { isEmbed, embedExpandId, embedHostReady, embedControls } from '$lib/stores/embed';
 
   let newFileName = $state('');
   let isCreatingFile = $state(false);
@@ -213,7 +213,13 @@
       </Button>
       <EmbedPopover />
     {/if}
-    <CodeActions showCopy={$isEmbed} showOpen={$isEmbed} iconsOnly={$isEmbed && $embedIcons} />
+    <CodeActions
+      showCopy={$isEmbed}
+      showOpen={$isEmbed}
+      controls={$embedControls}
+      showExpand={$isEmbed && !!$embedExpandId && $embedHostReady}
+      expandId={$embedExpandId}
+    />
   </div>
 </header>
 

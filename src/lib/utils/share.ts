@@ -7,6 +7,7 @@
 import { files, activeFile } from '$lib/stores/playground';
 import { settings, showBytecode, type PlaygroundSettings } from '$lib/stores/settings';
 import { type ThemeMode } from '$lib/utils/theme';
+import { type EmbedControls } from '$lib/stores/embed';
 import { defaultSettings, CURRENT_VERSION, DEFAULT_FILENAME } from '$lib/constants';
 import { get } from 'svelte/store';
 import LZString from 'lz-string';
@@ -93,13 +94,13 @@ export function generatePlaygroundUrl(): URL {
 /**
  * Generate an embed URL for the current playground state.
  */
-export function generateEmbedUrl(theme: ThemeMode = 'system', icons = false, state: ShareState = currentState()): URL {
+export function generateEmbedUrl(theme: ThemeMode = 'system', controls: EmbedControls = 'text', state: ShareState = currentState()): URL {
   if (typeof window === 'undefined') return new URL('https://play.luau.org/');
 
   const url = new URL(window.location.origin + window.location.pathname);
   url.searchParams.set('embed', 'true');
   if (theme !== 'system') url.searchParams.set('theme', theme);
-  if (icons) url.searchParams.set('icons', 'true');
+  if (controls === 'icons') url.searchParams.set('controls', 'icons');
   url.hash = encodeState(state);
   return url;
 }
@@ -109,16 +110,17 @@ export function generateEmbedUrl(theme: ThemeMode = 'system', icons = false, sta
  * Generate an iframe embed code snippet for the current playground state.
  *
  * The playground owns what happens inside the frame; the host page owns the
- * frame's size. When the code does not fit in `height`, the snippet carries its
- * own expand toggle — a checkbox and a label, so no script is involved.
+ * frame's size. When the code does not fit in `height`, the snippet carries a
+ * checkbox and a stylesheet that grow the frame. The expand button is inside
+ * the frame and posts a message that flips the checkbox.
  */
 export function generateEmbedCode(
   theme: ThemeMode = 'system',
-  icons = false,
+  controls: EmbedControls = 'text',
   height = DEFAULT_EMBED_HEIGHT,
   state: ShareState = currentState(),
 ): string {
-  return buildEmbedSnippet(generateEmbedUrl(theme, icons, state), height, fullEmbedHeight(state.files));
+  return buildEmbedSnippet(generateEmbedUrl(theme, controls, state), height, fullEmbedHeight(state.files));
 }
 
 /**

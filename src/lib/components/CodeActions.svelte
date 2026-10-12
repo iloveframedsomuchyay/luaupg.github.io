@@ -5,29 +5,37 @@
   import { runCode, checkCode, stopExecution } from '$lib/luau/wasm';
   import { generatePlaygroundUrl } from '$lib/utils/share';
   import { copyText } from '$lib/utils/clipboard';
+  import { type EmbedControls } from '$lib/stores/embed';
 
   interface Props {
     /** Show a button that copies the active file to the clipboard. */
     showCopy?: boolean;
     /** Show a button that opens the current state in the full playground. */
     showOpen?: boolean;
-    /** Drop text labels and use icons at every breakpoint. */
-    iconsOnly?: boolean;
+    /** Text or icon labels. Single-file overlays are always icons. */
+    controls?: EmbedControls;
     /** Float the actions over the editor instead of sitting in the tab bar. */
     overlay?: boolean;
+    /** Show Expand/Collapse. The host page resizes the frame when it is clicked. */
+    showExpand?: boolean;
+    /** Id of the host page's expand checkbox. */
+    expandId?: string | null;
   }
 
   let {
     showCopy = false,
     showOpen = false,
-    iconsOnly = false,
+    controls = 'text',
     overlay = false,
+    showExpand = false,
+    expandId = null,
   }: Props = $props();
 
-  const compact = $derived(iconsOnly || overlay);
+  const compact = $derived(controls === 'icons' || overlay);
 
   // Delay before showing stop button to avoid flash on fast scripts
   let showStopButton = $state(false);
+  let expanded = $state(false);
   let copySuccess = $state(false);
   let copyTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -66,11 +74,20 @@
     window.open(generatePlaygroundUrl(), '_blank', 'noopener,noreferrer');
   }
 
-  const buttonClass = $derived(
-    compact
-      ? `w-8 px-0${overlay ? ' overlay-btn' : ''}`
-      : 'px-2 sm:px-3'
-  );
+  function handleExpand() {
+    expanded = !expanded;
+    if (!expandId || window.parent === window) return;
+    let origin = '*';
+    try {
+      if (document.referrer) origin = new URL(document.referrer).origin;
+    } catch {
+      origin = '*';
+    }
+    window.parent.postMessage({ type: 'luau-embed-expand', id: expandId, expanded }, origin);
+  }
+
+  const iconButtonClass = $derived(`w-8 px-0${overlay ? ' overlay-btn' : ''}`);
+  const buttonClass = $derived(compact ? iconButtonClass : 'px-2 sm:px-3');
 
   // The run button keeps its solid accent fill, so it only needs the shadow
   const runButtonClass = $derived(
@@ -92,6 +109,18 @@
     ? 'absolute top-2 right-2 z-20 flex items-center gap-1'
     : 'flex items-center gap-0.5 sm:gap-1'}
 >
+  {#if showExpand}
+    <Button
+      size="sm"
+      variant="secondary"
+      onclick={handleExpand}
+      class={buttonClass}
+      title={expanded ? 'Collapse code' : 'Expand code'}
+      aria-label={expanded ? 'Collapse code' : 'Expand code'}
+    >
+      {@render label(expanded ? 'collapse' : 'expand', expanded ? 'Collapse' : 'Expand')}
+    </Button>
+  {/if}
   {#if showCopy}
     <Button
       size="sm"
@@ -102,6 +131,18 @@
       aria-label={copySuccess ? 'Copied' : 'Copy code'}
     >
       {@render label(copySuccess ? 'check' : 'copy', copySuccess ? 'Copied!' : 'Copy')}
+    </Button>
+  {/if}
+  {#if showOpen}
+    <Button
+      size="sm"
+      variant="secondary"
+      onclick={handleOpenInPlayground}
+      class={buttonClass}
+      title="Open in playground"
+      aria-label="Open in playground"
+    >
+      {@render label('external', 'Open')}
     </Button>
   {/if}
   <Button
@@ -129,18 +170,6 @@
       <span class="hidden sm:inline">{showStopButton ? 'Stop' : 'Run'}</span>
     {/if}
   </Button>
-  {#if showOpen}
-    <Button
-      size="sm"
-      variant="secondary"
-      onclick={handleOpenInPlayground}
-      class={buttonClass}
-      title="Open in playground"
-      aria-label="Open in playground"
-    >
-      {@render label('external', 'Open')}
-    </Button>
-  {/if}
 </div>
 
 <style>

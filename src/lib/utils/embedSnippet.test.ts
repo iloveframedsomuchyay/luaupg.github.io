@@ -21,7 +21,7 @@ test('a snippet that fits is a plain sized iframe', () => {
   assert.doesNotMatch(html, /luau-embed-toggle/);
 });
 
-test('the toggle follows the files that were passed in', () => {
+test('only code taller than the collapsed height gets an expand toggle', () => {
   const short = fullEmbedHeight({ 'main.luau': 'print(1)\n' });
   const lines = Array.from({ length: 40 }, (_, i) => `print(${i})`).join('\n');
   const long = fullEmbedHeight({ 'main.luau': lines, 'utils.luau': lines });
@@ -29,8 +29,25 @@ test('the toggle follows the files that were passed in', () => {
   assert.ok(short <= height);
   assert.ok(long > height);
   assert.doesNotMatch(buildEmbedSnippet(url, height, short), /luau-embed-toggle/);
-  assert.match(buildEmbedSnippet(url, height, long), /luau-embed-toggle/);
-  assert.ok(long > fullEmbedHeight({ 'main.luau': lines }));
+  const expandable = buildEmbedSnippet(url, height, long);
+  assert.match(expandable, /luau-embed-toggle/);
+  assert.doesNotMatch(iframe(expandable), /[?&]expand=true/);
+  assert.match(expandable, /luau-embed-expand/);
+});
+
+test('multi-file embeds add the tab bar height', () => {
+  const lines = Array.from({ length: 40 }, (_, i) => `print(${i})`).join('\n');
+
+  assert.ok(fullEmbedHeight({ 'main.luau': lines, 'utils.luau': lines }) > fullEmbedHeight({ 'main.luau': lines }));
+});
+
+test('the frame tells the host checkbox to resize', () => {
+  const html = buildEmbedSnippet(url, height, height * 2);
+  const id = html.match(/id="(luau-embed-[^"]+)"/)?.[1];
+
+  assert.ok(id);
+  assert.match(iframe(html), new RegExp(`[?&]expandId=${id}`));
+  assert.doesNotMatch(html, /luau-embed-label/);
 });
 
 test('an expandable iframe keeps its size when the stylesheet is stripped', () => {

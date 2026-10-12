@@ -116,7 +116,8 @@ https://play.luau.org/?embed=true#<compressed-state>
 Query parameters:
 - `embed=true`: Enables embed mode (hides settings, bytecode toggle, share button)
 - `theme=light|dark`: Force a specific theme (defaults to `auto` which follows system preference)
-- `icons=true`: Use icon-only controls instead of text labels
+- `controls=icons`: Use icon labels instead of text (defaults to text)
+- `expandId`: Id of the host checkbox that grows the frame. Present only when the code is taller than the collapsed height (set by generated snippets)
 
 Embeds always include a copy button for the active file. When the embed contains a single
 file there is no tab bar — the controls float over the editor instead.
@@ -124,17 +125,16 @@ file there is no tab bar — the controls float over the editor instead.
 #### Expandable embeds
 
 An iframe cannot resize itself, so the frame's height belongs to the host page. When the
-code does not fit the requested height, the generated snippet brings its own expand
-toggle — a checkbox and a label, with no script on either side:
+code does not fit the requested height, the generated snippet brings a checkbox and a
+stylesheet that grow the frame. The expand button is inside the frame, first in the
+action row (expand, copy, open, check, then play), and posts a message that checks the
+box:
 
 ```html
 <div class="luau-embed" style="--luau-collapsed: 400px; --luau-expanded: 828px;">
   <input class="luau-embed-toggle" id="luau-embed-k3f9qa" type="checkbox">
-  <iframe src="https://play.luau.org/?embed=true#<state>"></iframe>
-  <label class="luau-embed-label" for="luau-embed-k3f9qa">
-    <span class="luau-embed-more">Expand ▾</span>
-    <span class="luau-embed-less">Collapse ▴</span>
-  </label>
+  <iframe src="https://play.luau.org/?embed=true&expandId=luau-embed-k3f9qa#<state>"></iframe>
+  <script>/* sets the checkbox when the frame posts luau-embed-expand */</script>
 </div>
 ```
 
