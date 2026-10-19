@@ -6,7 +6,7 @@
 
 import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, rectangularSelection, crosshairCursor, highlightSpecialChars } from '@codemirror/view';
 import { EditorState, Compartment } from '@codemirror/state';
-import type { Extension } from '@codemirror/state';
+import type { Extension, StateEffect } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { bracketMatching, indentOnInput, indentUnit } from '@codemirror/language';
 import { acceptCompletion, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
@@ -21,6 +21,7 @@ import { forceLinting, lintGutter } from '@codemirror/lint';
 import { EDITOR_FONT_SIZE, EDITOR_LINE_HEIGHT, EDITOR_PADDING_Y } from './metrics';
 import { themeMode } from '$lib/utils/theme';
 import { cursorLine, isRunning } from '$lib/stores/playground';
+import { keybindings, type KeybindingMode } from '$lib/stores/settings';
 import { runCode, stopExecution } from '$lib/luau/wasm';
 import { get } from 'svelte/store';
 
@@ -33,9 +34,11 @@ let currentFile: string | null = null;
 
 // Compartments for dynamic reconfiguration
 const themeCompartment = new Compartment();
+const keybindingsCompartment = new Compartment();
 
-// Subscribe to theme changes
+// Subscribe to theme and keybinding changes
 let unsubscribeTheme: (() => void) | null = null;
+let unsubscribeKeybindings: (() => void) | null = null;
 
 function getThemeExtension(): Extension {
   const mode = get(themeMode);
@@ -43,11 +46,42 @@ function getThemeExtension(): Extension {
   return isDark ? darkTheme : lightTheme;
 }
 
+// Alternate keymaps are loaded on demand so their bundles are only fetched when selected
+const keybindingLoaders: Record<Exclude<KeybindingMode, 'default'>, () => Promise<Extension>> = {
+  vim: async () => (await import('@replit/codemirror-vim')).vim(),
+};
+const loadedKeybindings = new Map<KeybindingMode, Extension>();
+
+function getKeybindingsExtension(): Extension {
+  return loadedKeybindings.get(get(keybindings)) ?? [];
+}
+
+async function loadKeybindings(mode: KeybindingMode): Promise<void> {
+  if (mode === 'default' || loadedKeybindings.has(mode)) return;
+  loadedKeybindings.set(mode, await keybindingLoaders[mode]());
+}
+
+/**
+ * Apply a reconfiguration to the active view and every cached file state,
+ * so switching files doesn't bring back a stale configuration.
+ */
+function reconfigureAll(effects: StateEffect<unknown>): void {
+  editorView?.dispatch({ effects });
+  for (const [name, state] of fileStates) {
+    if (name !== currentFile) {
+      fileStates.set(name, state.update({ effects }).state);
+    }
+  }
+}
+
 /**
  * Create base extensions for the editor.
  */
 function createExtensions(onChange: (content: string) => void): Extension[] {
   return [
+    // Alternate keybindings (dynamic), must precede other keymaps
+    keybindingsCompartment.of(getKeybindingsExtension()),
+
     // Basic setup
     lineNumbers(),
     highlightActiveLineGutter(),
@@ -102,6 +136,13 @@ function createExtensions(onChange: (content: string) => void): Extension[] {
       '.cm-content': {
         padding: `${EDITOR_PADDING_Y}px 0`,
       },
+      '.cm-vim-panel': {
+        fontFamily: 'var(--font-mono)',
+      },
+      '.cm-vim-panel input': {
+        color: 'inherit',
+        fontFamily: 'inherit',
+      },
     }),
     
     // Update listener
@@ -142,20 +183,22 @@ export function createEditor(
 
   // Subscribe to theme changes
   unsubscribeTheme = themeMode.subscribe(() => {
-    if (editorView) {
-      editorView.dispatch({
-        effects: themeCompartment.reconfigure(getThemeExtension()),
-      });
-    }
+    reconfigureAll(themeCompartment.reconfigure(getThemeExtension()));
+  });
+
+  // Subscribe to keybinding changes
+  unsubscribeKeybindings = keybindings.subscribe(async (mode) => {
+    await loadKeybindings(mode);
+    // Skip if the selection changed while loading
+    if (get(keybindings) !== mode) return;
+    reconfigureAll(keybindingsCompartment.reconfigure(getKeybindingsExtension()));
   });
 
   // Also listen for system theme changes
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
   const handleMediaChange = () => {
-    if (get(themeMode) === 'system' && editorView) {
-      editorView.dispatch({
-        effects: themeCompartment.reconfigure(getThemeExtension()),
-      });
+    if (get(themeMode) === 'system') {
+      reconfigureAll(themeCompartment.reconfigure(getThemeExtension()));
     }
   };
   mediaQuery.addEventListener('change', handleMediaChange);
@@ -170,6 +213,10 @@ export function destroyEditor(): void {
   if (unsubscribeTheme) {
     unsubscribeTheme();
     unsubscribeTheme = null;
+  }
+  if (unsubscribeKeybindings) {
+    unsubscribeKeybindings();
+    unsubscribeKeybindings = null;
   }
   
   if (editorView) {

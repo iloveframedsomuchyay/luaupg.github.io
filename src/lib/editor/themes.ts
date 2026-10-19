@@ -141,6 +141,23 @@ function createTheme(colors: ThemeColors, isDark: boolean): Extension {
           zIndex: "10 !important",
           pointerEvents: "none",
         },
+        // Vim's block cursor layer would otherwise sit beneath .cm-content
+        ".cm-vimCursorLayer": {
+          zIndex: "10",
+        },
+        // Vim's block cursor draws the character under it with an inline
+        // color, so override that to stay readable on the cursor color
+        // (except partial-height cursors, which hide the character)
+        ".cm-fat-cursor": {
+          background: `${colors.cursor} !important`,
+        },
+        '.cm-fat-cursor:not([style*="color: transparent"])': {
+          color: `${colors.background} !important`,
+        },
+        "&:not(.cm-focused) .cm-fat-cursor": {
+          background: "none !important",
+          outline: `solid 1px ${colors.cursor} !important`,
+        },
         "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": {
           backgroundColor: `${colors.selection} !important`,
         },

@@ -7,11 +7,14 @@
     setDebugLevel,
     setCompilerRemarks,
     setOutputFormat,
+    keybindings,
+    setKeybindings,
     type LuauMode, 
     type SolverMode,
     type OptimizationLevel,
     type DebugLevel,
-    type OutputFormat
+    type OutputFormat,
+    type KeybindingMode
   } from '$lib/stores/settings';
   import Button from '$lib/components/Button.svelte';
   import { Icon } from '$lib/icons';
@@ -44,6 +47,11 @@
     { value: 1, label: 'IR', description: 'IR bytecode' },
     { value: 2, label: 'x64', description: 'x64 native code' },
     { value: 3, label: 'arm64', description: 'arm64 native code' },
+  ];
+
+  const keybindingOptions: { value: KeybindingMode; label: string }[] = [
+    { value: 'default', label: 'Default' },
+    { value: 'vim', label: 'Vim' },
   ];
 
   async function handleModeChange(mode: LuauMode) {
@@ -80,7 +88,7 @@
   <div class="space-y-4">
     <div>
       <h3 class="text-sm font-semibold text-(--text-primary) mb-1">Settings</h3>
-      <p class="text-xs text-(--text-muted)">Configure type checking and compiler</p>
+      <p class="text-xs text-(--text-muted)">Configure editor, type checking, and compiler</p>
     </div>
 
     <!-- Type Checking Section -->
@@ -209,6 +217,28 @@
         />
         <span class="text-xs text-(--text-secondary)">Show compiler remarks</span>
       </label>
+    </div>
+
+    <div class="border-t border-(--border-color)"></div>
+
+    <!-- Editor Section -->
+    <div class="space-y-3">
+      <span class="text-xs font-semibold text-(--text-secondary) uppercase tracking-wide">Editor</span>
+
+      <!-- Keybindings -->
+      <div class="space-y-1.5">
+        <label for="keybindings-select" class="text-xs text-(--text-muted)">Keybindings</label>
+        <select
+          id="keybindings-select"
+          value={$keybindings}
+          onchange={(e) => setKeybindings(e.currentTarget.value as KeybindingMode)}
+          class="w-full px-2 py-1.5 text-xs rounded-md border border-(--border-color) bg-(--bg-tertiary) text-(--text-primary) focus:outline-none focus:border-(--accent) cursor-pointer"
+        >
+          {#each keybindingOptions as option}
+            <option value={option.value}>{option.label}</option>
+          {/each}
+        </select>
+      </div>
     </div>
   </div>
 </div>

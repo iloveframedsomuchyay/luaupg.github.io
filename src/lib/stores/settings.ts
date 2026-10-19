@@ -1,6 +1,6 @@
 import { writable, get } from 'svelte/store';
 import { parseStateFromHash } from '$lib/utils/decode';
-import { STORAGE_KEY, UI_STORAGE_KEY, defaultSettings } from '$lib/constants';
+import { STORAGE_KEY, UI_STORAGE_KEY, KEYBINDINGS_STORAGE_KEY, defaultSettings } from '$lib/constants';
 import { detectEmbedMode } from '$lib/stores/embed';
 
 export type LuauMode = "strict" | "nonstrict" | "nocheck";
@@ -8,6 +8,9 @@ export type SolverMode = "new" | "old";
 export type OptimizationLevel = 0 | 1 | 2;
 export type DebugLevel = 0 | 1 | 2;
 export type OutputFormat = 0 | 1 | 2 | 3;
+export type KeybindingMode = "default" | "vim";
+
+const keybindingModes: readonly KeybindingMode[] = ["default", "vim"];
 
 export interface PlaygroundSettings {
   // Type checking
@@ -81,6 +84,33 @@ function saveShowBytecodeToStorage(value: boolean): void {
   }
 }
 
+function loadKeybindingsFromStorage(): KeybindingMode {
+  if (typeof window === 'undefined') {
+    return 'default';
+  }
+  if (detectEmbedMode()) {
+    return 'default';
+  }
+
+  try {
+    const stored = localStorage.getItem(KEYBINDINGS_STORAGE_KEY);
+    return keybindingModes.find((mode) => mode === stored) ?? 'default';
+  } catch {
+    return 'default';
+  }
+}
+
+function saveKeybindingsToStorage(value: KeybindingMode): void {
+  if (typeof window === 'undefined') return;
+  if (detectEmbedMode()) return;
+
+  try {
+    localStorage.setItem(KEYBINDINGS_STORAGE_KEY, value);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 function mergeSettings(partial: Partial<PlaygroundSettings>): PlaygroundSettings {
   return {
     mode: partial.mode ?? defaultSettings.mode,
@@ -129,6 +159,9 @@ export const settings = writable<PlaygroundSettings>(initialState.settings);
 // Separate store for bytecode panel visibility
 export const showBytecode = writable<boolean>(initialState.showBytecode);
 
+// Editor preference, intentionally kept out of shared links
+export const keybindings = writable<KeybindingMode>(loadKeybindingsFromStorage());
+
 if (typeof window !== 'undefined' && !detectEmbedMode()) {
   // Auto-save settings when they change
   settings.subscribe((value) => {
@@ -138,6 +171,10 @@ if (typeof window !== 'undefined' && !detectEmbedMode()) {
   // Auto-save UI state when it changes
   showBytecode.subscribe((value) => {
     saveShowBytecodeToStorage(value);
+  });
+
+  keybindings.subscribe((value) => {
+    saveKeybindingsToStorage(value);
   });
 }
 
@@ -163,6 +200,10 @@ export function setOutputFormat(level: OutputFormat): void {
 
 export function setCompilerRemarks(enabled: boolean): void {
   settings.update((s) => ({ ...s, compilerRemarks: enabled }));
+}
+
+export function setKeybindings(mode: KeybindingMode): void {
+  keybindings.set(mode);
 }
 
 export function toggleBytecode(): void {
