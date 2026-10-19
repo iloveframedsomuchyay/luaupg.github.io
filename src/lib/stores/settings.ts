@@ -85,10 +85,7 @@ function saveShowBytecodeToStorage(value: boolean): void {
 }
 
 function loadKeybindingsFromStorage(): KeybindingMode {
-  if (typeof window === 'undefined') {
-    return 'default';
-  }
-  if (detectEmbedMode()) {
+  if ((typeof window === 'undefined') || detectEmbedMode()) {
     return 'default';
   }
 
@@ -101,8 +98,7 @@ function loadKeybindingsFromStorage(): KeybindingMode {
 }
 
 function saveKeybindingsToStorage(value: KeybindingMode): void {
-  if (typeof window === 'undefined') return;
-  if (detectEmbedMode()) return;
+  if ((typeof window === 'undefined') || detectEmbedMode()) return;
 
   try {
     localStorage.setItem(KEYBINDINGS_STORAGE_KEY, value);
