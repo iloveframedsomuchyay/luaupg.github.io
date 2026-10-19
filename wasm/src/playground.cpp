@@ -1118,7 +1118,7 @@ static void ensureAnalysisInit() {
     options.runLintChecks = true;
 
     g_frontend = std::make_unique<Luau::Frontend>(
-	g_useNewSolver ? Luau::SolverMode::New : Luau::SolverMode::Old,
+        g_useNewSolver ? Luau::SolverMode::New : Luau::SolverMode::Old,
         g_fileResolver.get(),
         g_configResolver.get(),
         options
