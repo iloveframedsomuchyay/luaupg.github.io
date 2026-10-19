@@ -1172,10 +1172,6 @@ EXPORT void luau_set_mode(int mode) {
 EXPORT void luau_set_solver(bool useNew) {
     g_useNewSolver = useNew;
     
-    // Set feature flags for the new solver
-    // Both flags are needed: LuauSolverV2 enables the new solver globally,
-    FFlag::LuauSolverV2.value = useNew;
-    
     // Reset frontend to apply new solver (solver mode is set at initialization)
     if (g_frontend) {
         if (g_useNewSolver) {
