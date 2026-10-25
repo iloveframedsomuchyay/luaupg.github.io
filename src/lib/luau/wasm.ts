@@ -13,6 +13,7 @@ import type {
   ExecuteResult, 
   LuauDiagnostic,
   LuauCompletion,
+  LuauLint
 } from './types';
 import type { WorkerRequest, WorkerResponse } from './luau.worker';
 import LuauWorker from './luau.worker?worker';
@@ -57,6 +58,12 @@ async function getRobloxStudioFlagPayload(): Promise<string | null> {
 
   return robloxStudioFlagPayloadPromise;
 }
+
+// Promise for getting all lints to use in GUI and settings
+let resolveGetAllLints: (value: LuauLint[]) => void;
+export const getAllLints = new Promise<LuauLint[]>((resolve) => {
+  resolveGetAllLints = resolve;
+});
 
 // Compiled WASM module - shared with workers to avoid recompilation
 // WebAssembly.Module is structured-clonable, so workers get the same compiled code
@@ -280,9 +287,18 @@ async function loadAnalysisWorker(): Promise<void> {
         await sendToWorker(analysis, 'setFFlags', { serializedFlags: robloxStudioFlags });
       }
 
+      // Resolve lints promise
+      const getLintsResponse = await sendToWorker(analysis, 'getLints', {});
+      const allLints = getLintsResponse.result.lints;
+
+      resolveGetAllLints(allLints);
+
       const currentSettings = get(settings);
+      const currentLints = currentSettings.lints === 'all' ? allLints.map(v => v.code) : currentSettings.lints;
+
       await sendToWorker(analysis, 'setMode', { mode: modeToNum(currentSettings.mode) });
       await sendToWorker(analysis, 'setSolver', { isNew: currentSettings.solver === 'new' });
+      await sendToWorker(analysis, 'setLints', { serializedLints: currentLints.join(',') });
       initSettingsSync();
     }
   });
@@ -472,6 +488,17 @@ export async function setLuauSolver(solver: SolverMode): Promise<void> {
   }
 }
 
+/**
+ * Set enabled lints on the analysis worker.
+ */
+export async function setLints(lints: string): Promise<void> {
+  try {
+    await sendAnalysisRequest('setLints', { serializedLints: lints });
+  } catch(error) {
+    console.error('[Luau] Failed to set enabled lints:', error);
+  }
+}
+
 // Subscribe to settings changes and sync to WASM
 let settingsUnsubscribe: (() => void) | null = null;
 
@@ -480,8 +507,11 @@ export function initSettingsSync(): void {
   
   settingsUnsubscribe = settings.subscribe(async (newSettings) => {
     if (analysis.ready) {
+      const currentLints = newSettings.lints === 'all' ? (await getAllLints).map(v => v.code) : newSettings.lints;
+
       await setLuauMode(newSettings.mode);
       await setLuauSolver(newSettings.solver);
+      await setLints(currentLints.join(','));
     }
   });
 }
@@ -595,9 +625,9 @@ export async function checkCode(): Promise<void> {
       appendOutput({ type: 'log', text: '' });
       
       for (const diag of diagnostics) {
-        const location = `${fileName}:${diag.startLine + 1}:${diag.startCol + 1}`;
+        const location = `${fileName}(${diag.startLine + 1}, ${diag.startCol + 1})`;
         const type = diag.severity === 'error' ? 'error' : diag.severity === 'warning' ? 'warn' : 'log';
-        appendOutput({ type, text: `${location}: ${diag.message}` });
+        appendOutput({ type, text: `${location}: ${diag.type}: ${diag.message}` });
       }
     }
   } catch (error) {
